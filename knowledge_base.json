@@ -1,0 +1,30 @@
+{
+  "machine_id": "Haas VF-2 CNC Mill",
+  "manuals": [
+    {
+      "url": "https://web.mae.ufl.edu/designlab/TA/Manuals/Haas%20VF-2%20Operator%20Manual.pdf",
+      "title": "Haas VF-2 Operator Manual.pdf\n\nUniversity of Florida\nhttps://web.mae.ufl.edu \u203a designlab \u203a Manuals \u203a H...",
+      "source_url": ""
+    },
+    {
+      "url": "https://web.mae.ufl.edu/designlab/TA/Manuals/Haas%20VF-2%20Operator%20Manual.pdf#:~:text=Should%20you%20have%20a%20problem,call%20your%20authorized%20Haas%20distributor.",
+      "title": "Read more",
+      "source_url": ""
+    },
+    {
+      "url": "https://www.haascnc.com/content/dam/haascnc/en/service/manual/service/english---vf-series-service-manual---2002.pdf",
+      "title": "English - VF Series Service Manual - 2002\n\nHaas Automation Inc.\nhttps://www.haascnc.com \u203a content \u203a dam \u203a haascnc",
+      "source_url": ""
+    },
+    {
+      "url": "https://www.haascnc.com/content/dam/haascnc/en/service/manual/service/english---vf-series-service-manual---2002.pdf#:~:text=Historic%20machine%20Service%20Manuals%20are,the%20time%20of%20original%20publication.",
+      "title": "Read more",
+      "source_url": ""
+    },
+    {
+      "url": "https://www.haascnc.com/content/dam/haascnc/en/service/manual/operator/english---vf-series-operator's-manual---2002.pdf",
+      "title": "English - Mill Operator's Manual - 2002\n\nHaas Automation\nhttps://www.haascnc.com \u203a manual \u203a operator \u203a e...",
+      "source_url": ""
+    }
+  ]
+}
