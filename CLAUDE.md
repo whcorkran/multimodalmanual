@@ -16,6 +16,12 @@ Full spec: `machine-maintenance-pipeline.md`
 
 ## Architecture
 
+### Inputs
+1. **Manual** — either a local PDF upload or a web-crawled PDF (see Phase 01)
+2. **User goal prompt** — natural language description of the task (e.g. `"change the oil and oil filter"`)
+
+The goal prompt is a **first-class input** that threads through Phases 02, 03, and 04. It is not just a label — it directly shapes VLM context windows at every inference call.
+
 ### Phase 01 — Manual Acquisition & Preprocessing [DONE]
 Two input paths, same output:
 - **Upload**: user provides a local PDF
@@ -26,18 +32,75 @@ Both paths feed into the same preprocessing pipeline:
 - Classify sections by heading detection + keyword matching (safety, maintenance, troubleshooting, operation, overview)
 - Output: `ProcessedManual` with pages, images, and labeled sections
 
-### Phase 02 — Visual State Detection (Overshoot VLM)
-- Accept live camera feeds, uploaded photos, or manual images
-- Run Overshoot inference with manual-derived context
-- Classify component anomalies by location, severity, and confidence
-- Output: `AnnotatedStateReport`
+### Phase 02 — Goal-Aware Subtask Generation (LLM Synthesis)
 
-### Phase 03 — Subtask Generation (LLM Synthesis)
-- Match VLM findings to manual procedures
-- Decompose into granular step-level subtasks
-- Sequence respecting safety constraints and dependencies
-- Tag priority: Critical / High / Routine
-- Output: `PrioritizedSubtaskChecklist`
+**Inputs:** `ProcessedManual` + User goal prompt
+
+**Process:**
+- LLM reads the relevant manual sections filtered by goal (e.g. maintenance + safety)
+- Decomposes the goal into granular, sequenced subtasks
+- Each subtask is tagged with:
+  - **Priority**: Critical / High / Routine
+  - **Visual cue**: what the camera should look for (e.g. `"oil drain plug on underside of engine block"`)
+  - **Completion criterion**: what constitutes done (e.g. `"new oil filter fully seated, no cross-threading"`)
+  - **Safety constraints**: predecessor steps that must be confirmed first
+
+**Output:** `PrioritizedSubtaskChecklist` — an ordered list of `Subtask` objects, each carrying its own VLM prompt fragments for use downstream
+
+### Phase 03 — Goal-Aware Detection + Guided Execution Loop (Overshoot VLM)
+
+For each `Subtask` in the checklist, the following loop runs:
+
+#### Step A — Targeted Component Detection
+- Overshoot receives the **current subtask's visual cue** as context (not a generic anomaly prompt)
+  - Example context: `"Locate the oil drain plug. It is typically a hex-head bolt on the underside of the oil pan."`
+- Overshoot runs inference on the live camera frame
+- Returns bounding boxes + confidence scores for relevant components
+- Overlay renders on the AR canvas:
+  - 🟢 Green — component identified, ready to act
+  - 🟡 Amber — component located but condition unclear
+  - 🔴 Red — problem detected (e.g. stripped bolt, wrong component)
+
+#### Step B — Audio Instruction Delivery
+- TTS reads the subtask instruction aloud, referencing the detected component location
+- User performs the physical step hands-free
+
+#### Step C — Completion Verification (Second VLM Agent)
+- A **separate Overshoot inference pass** runs after the user signals readiness (voice command or gesture)
+- This call uses the subtask's **completion criterion** as its prompt — not the detection prompt
+  - Example: `"Confirm the drain plug is reinstalled and torqued. Look for flush seating and no visible oil seepage around the plug."`
+- Returns: `CompletionVerdict { complete: bool, confidence: float, reason: str }`
+- If `complete=False`: TTS reads the `reason`, overlay highlights the issue, loop repeats from Step B
+- If `complete=True`: subtask is marked done, next subtask begins
+
+```
+for subtask in checklist:
+    while True:
+        frame = capture_frame()
+        detection = overshoot.detect(frame, context=subtask.visual_cue)
+        render_overlay(detection)
+        tts.speak(subtask.instruction)
+        wait_for_user_ready()
+        frame = capture_frame()
+        verdict = overshoot.verify(frame, criterion=subtask.completion_criterion)
+        if verdict.complete:
+            log_subtask_complete(subtask, verdict)
+            break
+        else:
+            tts.speak(f"Not quite: {verdict.reason}")
+```
+
+**Why two separate VLM calls?**
+
+Detection and verification are fundamentally different questions:
+- **Detection** asks: *"Where is the thing I need to interact with?"* — forward-looking, spatial
+- **Verification** asks: *"Has the action been successfully completed?"* — backward-looking, evaluative
+
+Using a single prompt for both degrades accuracy on both tasks. Separate calls with targeted prompts produce cleaner, more actionable outputs.
+
+#### Output
+- `SessionLog` with per-subtask completion timestamps, confidence scores, and any retry events
+
 
 ### Phase 04 — Guided Execution & Feedback Loop
 - Stream live camera via WebRTC
