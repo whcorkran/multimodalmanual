@@ -1,0 +1,15 @@
+[project]
+name = "hackwithhenry"
+version = "0.1.0"
+description = "Manual preprocessor for repair-assistant AI system"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "numpy",
+    "opencv-python",
+    "PyMuPDF",
+    "paddleocr",
+    "paddlepaddle",
+    "requests",
+    "duckduckgo-search",
+]
