@@ -9,3 +9,7 @@ wheels/
 # Virtual environments
 .venv
 .env
+.DS_Store
+output
+sample.*
+processed_manual_checklist.json

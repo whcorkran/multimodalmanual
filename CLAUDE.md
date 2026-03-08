@@ -125,18 +125,24 @@ multimodalmanual/
   doc_preprocessing/
     pdf_parser.py                   # PyMuPDF text + image extraction
     section_classifier.py           # Heading detection + section type classification
-  overshoot/                        # Phase 02 — VLM inference (planned)
+  subtask_generation/
+    synthesizer.py                  # Phase 02 — LLM subtask generation (Anthropic)
+  overshoot/
+    vlm_analyzer.py                 # Phase 03 — VLM detection + verification (Overshoot)
   viz_io/                           # Phase 04 — camera/overlay IO (planned)
 ```
 
 ## Usage
 
 ```bash
-# Process a local PDF:
-uv run python main.py "Haas VF-2 CNC Mill" --pdf manual.pdf
+# Phase 01 only — process a local PDF:
+uv run python main.py "Haas VF-2 CNC Mill" --pdf manual.pdf --phase 1
 
-# Search the web for a manual:
-uv run python main.py "Haas VF-2 CNC Mill"
+# Phases 01-02 — generate subtask checklist:
+uv run python main.py "Haas VF-2 CNC Mill" --pdf manual.pdf --goal "change the oil"
+
+# Full pipeline (01-03) — with VLM detection on an image:
+uv run python main.py "Haas VF-2 CNC Mill" --pdf manual.pdf --goal "change the oil" --image photo.jpg
 ```
 
 ## Conventions
