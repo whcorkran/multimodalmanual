@@ -59,6 +59,8 @@ async def _run_pipeline(machine_id: str, pdf_path: str | None, goal: str):
     yield _sse_event("phase01_result", {
         "machine_id": manual.machine_id,
         "source": manual.source.origin,
+        "source_url": manual.source.url,
+        "source_title": manual.source.title,
         "pages": len(manual.pages),
         "images": sum(len(p.image_paths) for p in manual.pages),
         "sections": sections_data,
@@ -141,7 +143,7 @@ HTML_PAGE = """\
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Machine Maintenance Assistant</title>
+<title>Maintenance Assistant</title>
 <style>
   :root {
     --bg: #0a0a0f;
@@ -208,15 +210,21 @@ HTML_PAGE = """\
   button:disabled { opacity: 0.4; cursor: not-allowed; }
 
   /* Source toggle */
-  .source-toggle { display: flex; gap: 0; }
+  .source-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  .source-row label { margin-bottom: 0; flex-shrink: 0; }
+  .source-toggle { display: inline-flex; gap: 0; }
   .toggle-btn {
-    flex: 1;
     background: var(--bg);
     border: 1px solid var(--border);
     color: var(--muted);
-    padding: 0.5rem 1rem;
+    padding: 0.35rem 0.75rem;
     font-family: inherit;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     font-weight: 600;
     cursor: pointer;
     margin-top: 0;
@@ -227,13 +235,17 @@ HTML_PAGE = """\
   .toggle-btn:hover:not(.active) { border-color: var(--accent); color: var(--text); }
   .search-hint {
     color: var(--muted);
-    font-size: 0.8rem;
-    padding: 0.6rem 0.8rem;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    line-height: 1.5;
+    font-size: 0.75rem;
+    margin-left: 0.5rem;
+    font-style: italic;
   }
+  /* Source link */
+  .source-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 0.8rem;
+  }
+  .source-link:hover { text-decoration: underline; }
 
   /* Pipeline */
   #pipeline { display: none; }
@@ -452,14 +464,14 @@ HTML_PAGE = """\
 </head>
 <body>
 <div class="container wide">
-  <h1>Machine Maintenance Assistant</h1>
+  <h1>Maintenance Assistant</h1>
   <p class="subtitle">Upload a manual, describe your goal — AI guides you with live camera analysis.</p>
 
   <div class="form-card" id="formCard">
     <form id="pipelineForm">
       <div class="form-row">
         <div>
-          <label>Machine ID</label>
+          <label>Product Name</label>
           <input type="text" name="machine_id" placeholder="e.g. Haas VF-2 CNC Mill" required>
         </div>
         <div>
@@ -467,25 +479,17 @@ HTML_PAGE = """\
           <input type="text" name="goal" placeholder="e.g. change the oil and oil filter" required>
         </div>
       </div>
-      <div class="form-row">
-        <div>
-          <label>Manual Source</label>
-          <div class="source-toggle">
-            <button type="button" class="toggle-btn active" id="toggleUpload" onclick="setSource('upload')">Upload PDF</button>
-            <button type="button" class="toggle-btn" id="toggleSearch" onclick="setSource('search')">Find Online</button>
-          </div>
+      <div class="source-row">
+        <div class="source-toggle">
+          <button type="button" class="toggle-btn active" id="toggleUpload" onclick="setSource('upload')">Upload PDF</button>
+          <button type="button" class="toggle-btn" id="toggleSearch" onclick="setSource('search')">Find Online</button>
         </div>
+        <span class="search-hint" id="searchHint" style="display:none">Will search for a manual using the product name</span>
       </div>
       <div class="form-row" id="uploadRow">
         <div>
           <label>PDF Manual</label>
           <input type="file" name="pdf" accept=".pdf" id="pdfInput">
-        </div>
-      </div>
-      <div class="form-row" id="searchRow" style="display:none">
-        <div class="search-hint">
-          The system will search for a PDF manual online using the Machine ID above.
-          Requires Browserbase credentials to be configured.
         </div>
       </div>
       <button type="submit" id="submitBtn">Start Live Session</button>
@@ -533,7 +537,7 @@ function setSource(mode) {
   document.getElementById('toggleUpload').classList.toggle('active', mode === 'upload');
   document.getElementById('toggleSearch').classList.toggle('active', mode === 'search');
   document.getElementById('uploadRow').style.display = mode === 'upload' ? '' : 'none';
-  document.getElementById('searchRow').style.display = mode === 'search' ? '' : 'none';
+  document.getElementById('searchHint').style.display = mode === 'search' ? '' : 'none';
   const pdfInput = document.getElementById('pdfInput');
   if (mode === 'search') pdfInput.value = '';
 }
@@ -785,7 +789,11 @@ function stopOverlay() {
 function renderPhase01(d) {
   const body = document.getElementById('phase1Body');
   const tagClass = t => 'tag-' + (t || 'overview');
+  const sourceHtml = d.source === 'web_search' && d.source_url
+    ? `<div style="margin-bottom:1rem"><a class="source-link" href="${esc(d.source_url)}" target="_blank" rel="noopener">${esc(d.source_title || d.source_url)}</a></div>`
+    : '';
   body.innerHTML = `
+    ${sourceHtml}
     <div class="stat-row">
       <div class="stat"><span class="stat-val">${d.pages}</span><span class="stat-label">Pages</span></div>
       <div class="stat"><span class="stat-val">${d.images}</span><span class="stat-label">Images</span></div>
@@ -807,13 +815,13 @@ function renderPhase02(d) {
   const body = document.getElementById('phase2Body');
   subtasksList = d.subtasks;
   const safetyHtml = d.safety_preamble
-    ? `<div class="safety-box">${esc(d.safety_preamble)}</div>` : '';
+    ? `<div class="safety-box"><strong>SAFETY WARNING:</strong> ${esc(d.safety_preamble)}</div>` : '';
 
   body.innerHTML = `
     ${safetyHtml}
     <div class="stat-row">
       <div class="stat"><span class="stat-val">${d.subtasks.length}</span><span class="stat-label">Subtasks</span></div>
-      <div class="stat"><span class="stat-val">${d.complexity}</span><span class="stat-label">Complexity</span></div>
+      <div class="stat"><span class="stat-val">${esc((d.complexity || '').charAt(0).toUpperCase() + (d.complexity || '').slice(1))}</span><span class="stat-label">Difficulty</span></div>
     </div>
     ${d.subtasks.map(t => `
       <div class="subtask ${t.priority}">
@@ -826,7 +834,7 @@ function renderPhase02(d) {
         <div class="subtask-meta">
           ${t.visual_cue ? `<span class="cue-label">Eye: ${esc(t.visual_cue)}</span><br>` : ''}
           ${t.completion_criterion ? `<span class="done-label">Done: ${esc(t.completion_criterion)}</span><br>` : ''}
-          ${t.warnings.length ? t.warnings.map(w => `<span class="warn-label">Warning: ${esc(w)}</span><br>`).join('') : ''}
+          ${t.warnings.length ? t.warnings.map(w => `<span class="warn-label">SAFETY: ${esc(w)}</span><br>`).join('') : ''}
           ${t.tools.length ? `<span>Tools: ${t.tools.map(esc).join(', ')}</span>` : ''}
         </div>
       </div>
@@ -909,15 +917,12 @@ function renderPhase03Live(d) {
       reason: d.reason || '',
     };
 
-    const confPct = Math.round(d.confidence * 100);
-    const confColor = confPct > 70 ? 'var(--green)' : confPct > 40 ? 'var(--amber)' : 'var(--red)';
     const icon = d.complete ? '&#9989;' : '&#10060;';
 
     ver.innerHTML = `
       ${icon}
       ${d.complete ? '<span style="color:var(--green);font-weight:600">COMPLETE</span>' : '<span style="color:var(--red)">INCOMPLETE</span>'}
-      <div class="confidence-bar"><div class="confidence-fill" style="width:${confPct}%;background:${confColor}"></div></div> ${confPct}%
-      &middot; ${esc(d.reason)}
+      ${d.reason ? '&middot; ' + esc(d.reason) : ''}
     `;
   }
 
